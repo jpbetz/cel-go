@@ -22,6 +22,10 @@ import (
 	"sync"
 	"testing"
 
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protodesc"
+	"google.golang.org/protobuf/reflect/protoreflect"
+
 	"github.com/google/cel-go/checker/decls"
 	"github.com/google/cel-go/common"
 	"github.com/google/cel-go/common/operators"
@@ -32,15 +36,13 @@ import (
 	"github.com/google/cel-go/interpreter"
 	"github.com/google/cel-go/interpreter/functions"
 	"github.com/google/cel-go/parser"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/reflect/protodesc"
-	"google.golang.org/protobuf/reflect/protoreflect"
 
-	proto2pb "github.com/google/cel-go/test/proto2pb"
-	proto3pb "github.com/google/cel-go/test/proto3pb"
 	exprpb "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
 	descpb "google.golang.org/protobuf/types/descriptorpb"
 	dynamicpb "google.golang.org/protobuf/types/dynamicpb"
+
+	proto2pb "github.com/google/cel-go/test/proto2pb"
+	proto3pb "github.com/google/cel-go/test/proto3pb"
 )
 
 func Example() {
@@ -1191,37 +1193,81 @@ func TestCustomInterpreterDecorator(t *testing.T) {
 }
 
 func TestCost(t *testing.T) {
-	e, err := NewEnv()
-	if err != nil {
-		log.Fatalf("environment creation error: %s\n", err)
-	}
-	ast, iss := e.Compile(`"Hello, World!"`)
-	if iss.Err() != nil {
-		log.Fatalln(iss.Err())
+	cases := []struct {
+		name                                     string
+		program                                  string
+		decls                                    []*exprpb.Decl
+		wantedMin, wantedMax                     int64
+		wantedMinExhaustive, wantedMaxExhaustive int64
+	}{
+		{
+			name:      "const",
+			program:   `"Hello World!"`,
+			wantedMin: 0,
+			wantedMax: 0,
+		},
+		{
+			name:                "list literal iteration",
+			program:             `[1, 2, 3].all(x, x < 3)`,
+			wantedMin:           4,
+			wantedMax:           19,
+			wantedMinExhaustive: 19,
+			wantedMaxExhaustive: 19,
+		},
+		{
+			name:                "list iteration",
+			decls:               []*exprpb.Decl{decls.NewVar("input", decls.NewListType(decls.Int))},
+			program:             `input.all(x, x < 3)`,
+			wantedMin:           4,
+			wantedMax:           19,
+			wantedMinExhaustive: 19,
+			wantedMaxExhaustive: 19,
+		},
+		{
+			name:                "field list iteration",
+			decls:               []*exprpb.Decl{decls.NewVar("input", decls.NewObjectType("google.expr.proto3.test.TestAllTypes"))},
+			program:             `input.repeated_int64.all(x, x < 3)`,
+			wantedMin:           4,
+			wantedMax:           19,
+			wantedMinExhaustive: 19,
+			wantedMaxExhaustive: 19,
+		},
 	}
 
-	wantedCost := []int64{0, 0}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e, err := NewEnv(Declarations(tc.decls...))
+			if err != nil {
+				log.Fatalf("environment creation error: %s\n", err)
+			}
+			e, _ = e.Extend(Types(&proto3pb.TestAllTypes{}), CustomTypeAdapter(types.DefaultTypeAdapter))
+			ast, iss := e.Compile(tc.program)
+			if iss.Err() != nil {
+				log.Fatalln(iss.Err())
+			}
 
-	// Test standard evaluation cost.
-	prg, err := e.Program(ast)
-	if err != nil {
-		log.Fatalf("program creation error: %s\n", err)
-	}
-	min, max := EstimateCost(prg)
-	if min != wantedCost[0] || max != wantedCost[1] {
-		log.Fatalf("Got cost interval [%v, %v], wanted %v",
-			min, max, wantedCost)
-	}
+			// Test standard evaluation cost.
+			prg, err := e.Program(ast)
+			if err != nil {
+				log.Fatalf("program creation error: %s\n", err)
+			}
+			min, max := EstimateCost(prg)
+			if min != tc.wantedMin || max != tc.wantedMax {
+				log.Fatalf("Got cost interval [%v, %v], wanted [%v, %v]",
+					min, max, tc.wantedMin, tc.wantedMax)
+			}
 
-	// Test the factory-based evaluation cost.
-	prg, err = e.Program(ast, EvalOptions(OptExhaustiveEval))
-	if err != nil {
-		t.Fatalf("program creation error: %s\n", err)
-	}
-	min, max = EstimateCost(prg)
-	if min != wantedCost[0] || max != wantedCost[1] {
-		log.Fatalf("Got cost interval [%v, %v], wanted %v",
-			min, max, wantedCost)
+			// Test the factory-based evaluation cost.
+			prg, err = e.Program(ast, EvalOptions(OptExhaustiveEval))
+			if err != nil {
+				t.Fatalf("program creation error: %s\n", err)
+			}
+			min, max = EstimateCost(prg)
+			if min != tc.wantedMinExhaustive || max != tc.wantedMaxExhaustive {
+				log.Fatalf("Got cost interval [%v, %v], wanted [%v, %v]",
+					min, max, tc.wantedMinExhaustive, tc.wantedMaxExhaustive)
+			}
+		})
 	}
 }
 

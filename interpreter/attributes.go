@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/google/cel-go/checker/decls"
 	"github.com/google/cel-go/common/containers"
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
@@ -74,6 +75,8 @@ type Qualifier interface {
 	// Qualify performs a qualification, e.g. field selection, on the input object and returns
 	// the value or error that results.
 	Qualify(vars Activation, obj interface{}) (interface{}, error)
+
+	Type() *exprpb.Type
 }
 
 // ConstantQualifier interface embeds the Qualifier interface and provides an option to inspect the
@@ -97,6 +100,8 @@ type Attribute interface {
 
 	// Resolve returns the value of the Attribute given the current Activation.
 	Resolve(Activation) (interface{}, error)
+
+	Type() *exprpb.Type
 }
 
 // NamespacedAttribute values are a variable within a namespace, and an optional set of qualifiers
@@ -240,6 +245,10 @@ func (a *absoluteAttribute) Cost() (min, max int64) {
 	return
 }
 
+func (a *absoluteAttribute) Type() *exprpb.Type {
+	return a.qualifiers[len(a.qualifiers)-1].Type() // TODO: correct?
+}
+
 // AddQualifier implements the Attribute interface method.
 func (a *absoluteAttribute) AddQualifier(qual Qualifier) (Attribute, error) {
 	a.qualifiers = append(a.qualifiers, qual)
@@ -337,6 +346,10 @@ func (a *conditionalAttribute) ID() int64 {
 	return a.id
 }
 
+func (a *conditionalAttribute) Type() *exprpb.Type {
+	return a.truthy.Type() // TODO: verify against falsy?
+}
+
 // Cost provides the heuristic cost of a ternary operation <expr> ? <t> : <f>.
 // The cost is computed as cost(expr) plus the min/max costs of evaluating either
 // `t` or `f`.
@@ -412,6 +425,10 @@ type maybeAttribute struct {
 // ID is an implementation of the Attribute interface method.
 func (a *maybeAttribute) ID() int64 {
 	return a.id
+}
+
+func (a *maybeAttribute) Type() *exprpb.Type {
+	return nil // TODO
 }
 
 // Cost implements the Coster interface method. The min cost is computed as the minimal cost among
@@ -546,6 +563,10 @@ func (a *relativeAttribute) ID() int64 {
 	return a.id
 }
 
+func (a *relativeAttribute) Type() *exprpb.Type {
+	return a.qualifiers[len(a.qualifiers)-1].Type() // TODO: correct?
+}
+
 // Cost implements the Coster interface method.
 func (a *relativeAttribute) Cost() (min, max int64) {
 	min, max = estimateCost(a.operand)
@@ -666,6 +687,10 @@ type stringQualifier struct {
 // ID is an implementation of the Qualifier interface method.
 func (q *stringQualifier) ID() int64 {
 	return q.id
+}
+
+func (q *stringQualifier) Type() *exprpb.Type {
+	return decls.String
 }
 
 // Qualify implements the Qualifier interface method.
@@ -848,6 +873,10 @@ func (q *intQualifier) Value() ref.Val {
 	return q.celValue
 }
 
+func (q *intQualifier) Type() *exprpb.Type {
+	return decls.Int
+}
+
 // Cost returns zero for constant field qualifiers
 func (q *intQualifier) Cost() (min, max int64) {
 	return 0, 0
@@ -863,6 +892,10 @@ type uintQualifier struct {
 // ID is an implementation of the Qualifier interface method.
 func (q *uintQualifier) ID() int64 {
 	return q.id
+}
+
+func (q *uintQualifier) Type() *exprpb.Type {
+	return decls.Uint
 }
 
 // Qualify implements the Qualifier interface method.
@@ -924,6 +957,10 @@ func (q *boolQualifier) ID() int64 {
 	return q.id
 }
 
+func (q *boolQualifier) Type() *exprpb.Type {
+	return decls.Bool
+}
+
 // Qualify implements the Qualifier interface method.
 func (q *boolQualifier) Qualify(vars Activation, obj interface{}) (interface{}, error) {
 	b := q.value
@@ -971,6 +1008,10 @@ type fieldQualifier struct {
 	Name      string
 	FieldType *ref.FieldType
 	adapter   ref.TypeAdapter
+}
+
+func (q *fieldQualifier) Type() *exprpb.Type {
+	return q.FieldType.Type
 }
 
 // ID is an implementation of the Qualifier interface method.

@@ -16,6 +16,10 @@ package interpreter
 
 import "math"
 
+type CostHinter interface {
+	Cost()
+}
+
 // Coster calculates the heuristic cost incurred during evaluation.
 type Coster interface {
 	Cost() (min, max int64)
