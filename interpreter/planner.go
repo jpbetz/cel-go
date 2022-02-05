@@ -140,7 +140,7 @@ func (p *planner) planIdent(expr *exprpb.Expr) (Interpretable, error) {
 	ident := expr.GetIdentExpr()
 	return &evalAttr{
 		adapter: p.adapter,
-		attr:    p.attrFactory.MaybeAttribute(expr.GetId(), ident.Name),
+		attr:    p.attrFactory.MaybeAttribute(expr.GetId(), nil, ident.Name), // TODO: nil
 	}, nil
 }
 
@@ -167,7 +167,7 @@ func (p *planner) planCheckedIdent(id int64, identRef *exprpb.Reference) (Interp
 	// Otherwise, return the attribute for the resolved identifier name.
 	return &evalAttr{
 		adapter: p.adapter,
-		attr:    p.attrFactory.AbsoluteAttribute(id, identRef.Name),
+		attr:    p.attrFactory.AbsoluteAttribute(id, cType, identRef.Name),
 	}, nil
 }
 

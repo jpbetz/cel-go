@@ -16,6 +16,7 @@ package interpreter
 
 import (
 	"fmt"
+	exprpb "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
 
 	"github.com/google/cel-go/common/containers"
 	"github.com/google/cel-go/common/types"
@@ -191,19 +192,19 @@ type partialAttributeFactory struct {
 // AbsoluteAttribute implementation of the AttributeFactory interface which wraps the
 // NamespacedAttribute resolution in an internal attributeMatcher object to dynamically match
 // unknown patterns from PartialActivation inputs if given.
-func (fac *partialAttributeFactory) AbsoluteAttribute(id int64, names ...string) NamespacedAttribute {
-	attr := fac.AttributeFactory.AbsoluteAttribute(id, names...)
+func (fac *partialAttributeFactory) AbsoluteAttribute(id int64, t *exprpb.Type, names ...string) NamespacedAttribute {
+	attr := fac.AttributeFactory.AbsoluteAttribute(id, t, names...)
 	return &attributeMatcher{fac: fac, NamespacedAttribute: attr}
 }
 
 // MaybeAttribute implementation of the AttributeFactory interface which ensure that the set of
 // 'maybe' NamespacedAttribute values are produced using the PartialAttributeFactory rather than
 // the base AttributeFactory implementation.
-func (fac *partialAttributeFactory) MaybeAttribute(id int64, name string) Attribute {
+func (fac *partialAttributeFactory) MaybeAttribute(id int64, t *exprpb.Type, name string) Attribute {
 	return &maybeAttribute{
 		id: id,
 		attrs: []NamespacedAttribute{
-			fac.AbsoluteAttribute(id, fac.container.ResolveCandidateNames(name)...),
+			fac.AbsoluteAttribute(id, t, fac.container.ResolveCandidateNames(name)...),
 		},
 		adapter:  fac.adapter,
 		provider: fac.provider,

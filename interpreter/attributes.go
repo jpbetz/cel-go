@@ -40,7 +40,7 @@ type AttributeFactory interface {
 	// must be in CEL's namespace resolution order. The name arguments provided here are
 	// returned in the same order as they were provided by the NamespacedAttribute
 	// CandidateVariableNames method.
-	AbsoluteAttribute(id int64, names ...string) NamespacedAttribute
+	AbsoluteAttribute(id int64, typ *exprpb.Type, names ...string) NamespacedAttribute
 
 	// ConditionalAttribute creates an attribute with two Attribute branches, where the Attribute
 	// that is resolved depends on the boolean evaluation of the input 'expr'.
@@ -50,7 +50,7 @@ type AttributeFactory interface {
 	// variable name.
 	//
 	// Only expressions which have not been type-checked may generate oneof attributes.
-	MaybeAttribute(id int64, name string) Attribute
+	MaybeAttribute(id int64, typ *exprpb.Type, name string) Attribute
 
 	// RelativeAttribute creates an attribute whose value is a qualification of a dynamic
 	// computation rather than a static variable reference.
@@ -146,9 +146,10 @@ type attrFactory struct {
 //
 // The namespaceNames represent the names the variable could have based on namespace
 // resolution rules.
-func (r *attrFactory) AbsoluteAttribute(id int64, names ...string) NamespacedAttribute {
+func (r *attrFactory) AbsoluteAttribute(id int64, t *exprpb.Type, names ...string) NamespacedAttribute {
 	return &absoluteAttribute{
 		id:             id,
+		t:              t,
 		namespaceNames: names,
 		qualifiers:     []Qualifier{},
 		adapter:        r.adapter,
@@ -172,11 +173,11 @@ func (r *attrFactory) ConditionalAttribute(id int64, expr Interpretable, t, f At
 
 // MaybeAttribute collects variants of unchecked AbsoluteAttribute values which could either be
 // direct variable accesses or some combination of variable access with qualification.
-func (r *attrFactory) MaybeAttribute(id int64, name string) Attribute {
+func (r *attrFactory) MaybeAttribute(id int64, t *exprpb.Type, name string) Attribute {
 	return &maybeAttribute{
 		id: id,
 		attrs: []NamespacedAttribute{
-			r.AbsoluteAttribute(id, r.container.ResolveCandidateNames(name)...),
+			r.AbsoluteAttribute(id, t, r.container.ResolveCandidateNames(name)...),
 		},
 		adapter:  r.adapter,
 		provider: r.provider,
@@ -219,6 +220,7 @@ func (r *attrFactory) NewQualifier(objType *exprpb.Type,
 
 type absoluteAttribute struct {
 	id int64
+	t  *exprpb.Type
 	// namespaceNames represent the names the variable could have based on declared container
 	// (package) of the expression.
 	namespaceNames []string
@@ -246,7 +248,7 @@ func (a *absoluteAttribute) Cost() (min, max int64) {
 }
 
 func (a *absoluteAttribute) Type() *exprpb.Type {
-	return a.qualifiers[len(a.qualifiers)-1].Type() // TODO: correct?
+	return a.t
 }
 
 // AddQualifier implements the Attribute interface method.
@@ -505,7 +507,7 @@ func (a *maybeAttribute) AddQualifier(qual Qualifier) (Attribute, error) {
 	}
 	// Next, ensure the most specific variable / type reference is searched first.
 	a.attrs = append([]NamespacedAttribute{
-		a.fac.AbsoluteAttribute(qual.ID(), augmentedNames...),
+		a.fac.AbsoluteAttribute(qual.ID(), qual.Type(), augmentedNames...),
 	}, a.attrs...)
 	return a, nil
 }

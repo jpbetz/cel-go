@@ -1232,6 +1232,15 @@ func TestCost(t *testing.T) {
 			wantedMinExhaustive: 19,
 			wantedMaxExhaustive: 19,
 		},
+		{
+			name:                "field list iteration",
+			decls:               []*exprpb.Decl{decls.NewVar("input", decls.NewListType(decls.NewObjectType("google.expr.proto3.test.TestAllTypes")))},
+			program:             `input.all(x, true)`,
+			wantedMin:           4,
+			wantedMax:           19,
+			wantedMinExhaustive: 19,
+			wantedMaxExhaustive: 19,
+		},
 	}
 
 	for _, tc := range cases {
