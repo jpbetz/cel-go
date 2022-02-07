@@ -1192,11 +1192,25 @@ func TestCustomInterpreterDecorator(t *testing.T) {
 	}
 }
 
+type testHinter struct {
+	m map[*exprpb.Type]int64
+}
+
+func (th *testHinter) HintLength(t *exprpb.Type) int64 {
+	if hint, ok := th.m[t]; ok {
+		return hint
+	}
+	return -1
+}
+
 func TestCost(t *testing.T) {
+	allList := decls.NewListType(decls.NewObjectType("google.expr.proto3.test.TestAllTypes"))
+	intList := decls.NewListType(decls.Int)
 	cases := []struct {
 		name                                     string
 		program                                  string
 		decls                                    []*exprpb.Decl
+		hints                                    map[*exprpb.Type]int64
 		wantedMin, wantedMax                     int64
 		wantedMinExhaustive, wantedMaxExhaustive int64
 	}{
@@ -1216,35 +1230,32 @@ func TestCost(t *testing.T) {
 		},
 		{
 			name:                "list iteration",
-			decls:               []*exprpb.Decl{decls.NewVar("input", decls.NewListType(decls.Int))},
+			decls:               []*exprpb.Decl{decls.NewVar("input", intList)},
+			hints:               map[*exprpb.Type]int64{intList: 10},
 			program:             `input.all(x, x < 3)`,
-			wantedMin:           4,
-			wantedMax:           19,
-			wantedMinExhaustive: 19,
-			wantedMaxExhaustive: 19,
+			wantedMin:           5,
+			wantedMax:           62,
+			wantedMinExhaustive: 62,
+			wantedMaxExhaustive: 62,
 		},
 		{
 			name:                "field list iteration",
-			decls:               []*exprpb.Decl{decls.NewVar("input", decls.NewObjectType("google.expr.proto3.test.TestAllTypes"))},
-			program:             `input.repeated_int64.all(x, x < 3)`,
-			wantedMin:           4,
-			wantedMax:           19,
-			wantedMinExhaustive: 19,
-			wantedMaxExhaustive: 19,
-		},
-		{
-			name:                "field list iteration",
-			decls:               []*exprpb.Decl{decls.NewVar("input", decls.NewListType(decls.NewObjectType("google.expr.proto3.test.TestAllTypes")))},
+			decls:               []*exprpb.Decl{decls.NewVar("input", allList)},
+			hints:               map[*exprpb.Type]int64{allList: 100},
 			program:             `input.all(x, true)`,
-			wantedMin:           4,
-			wantedMax:           19,
-			wantedMinExhaustive: 19,
-			wantedMaxExhaustive: 19,
+			wantedMin:           5,
+			wantedMax:           402,
+			wantedMinExhaustive: 402,
+			wantedMaxExhaustive: 402,
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.hints == nil {
+				tc.hints = map[*exprpb.Type]int64{}
+			}
+			hinter := &testHinter{m: tc.hints}
 			e, err := NewEnv(Declarations(tc.decls...))
 			if err != nil {
 				log.Fatalf("environment creation error: %s\n", err)
@@ -1260,7 +1271,7 @@ func TestCost(t *testing.T) {
 			if err != nil {
 				log.Fatalf("program creation error: %s\n", err)
 			}
-			min, max := EstimateCost(prg)
+			min, max := EstimateCost(prg, hinter)
 			if min != tc.wantedMin || max != tc.wantedMax {
 				log.Fatalf("Got cost interval [%v, %v], wanted [%v, %v]",
 					min, max, tc.wantedMin, tc.wantedMax)
@@ -1271,7 +1282,7 @@ func TestCost(t *testing.T) {
 			if err != nil {
 				t.Fatalf("program creation error: %s\n", err)
 			}
-			min, max = EstimateCost(prg)
+			min, max = EstimateCost(prg, hinter)
 			if min != tc.wantedMinExhaustive || max != tc.wantedMaxExhaustive {
 				log.Fatalf("Got cost interval [%v, %v], wanted [%v, %v]",
 					min, max, tc.wantedMinExhaustive, tc.wantedMaxExhaustive)

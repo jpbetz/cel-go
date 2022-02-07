@@ -470,11 +470,16 @@ func substitute(m *mapping, t *exprpb.Type, typeParamToDyn bool) *exprpb.Type {
 		}
 		return decls.NewFunctionType(rt, args...)
 	case kindList:
-		return decls.NewListType(substitute(m, t.GetListType().ElemType, typeParamToDyn))
+		// TODO(jpbetz): This is a hack to force the same decls provided to the env to be passed to "Hinter"
+		// (Keeping map to the decls but only using them in the callbacks might be an acceptable long term solution? Problem with this is that CheckedExpr is proto serializable)
+		return t
+		//return decls.NewListType(substitute(m, t.GetListType().ElemType, typeParamToDyn))
 	case kindMap:
-		mt := t.GetMapType()
-		return decls.NewMapType(substitute(m, mt.KeyType, typeParamToDyn),
-			substitute(m, mt.ValueType, typeParamToDyn))
+		// TODO(jpbetz): Same as above
+		return t
+		//mt := t.GetMapType()
+		//return decls.NewMapType(substitute(m, mt.KeyType, typeParamToDyn),
+		//	substitute(m, mt.ValueType, typeParamToDyn))
 	case kindType:
 		if t.GetType() != nil {
 			return decls.NewTypeType(substitute(m, t.GetType(), typeParamToDyn))

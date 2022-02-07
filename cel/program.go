@@ -259,8 +259,8 @@ func (p *prog) Eval(input interface{}) (v ref.Val, det *EvalDetails, err error) 
 }
 
 // Cost implements the Coster interface method.
-func (p *prog) Cost() (min, max int64) {
-	return estimateCost(p.interpretable)
+func (p *prog) Cost(hinter interpreter.CostHinter) (min, max int64) {
+	return estimateCost(p.interpretable, hinter)
 }
 
 // Eval implements the Program interface method.
@@ -288,13 +288,13 @@ func (gen *progGen) Eval(input interface{}) (ref.Val, *EvalDetails, error) {
 }
 
 // Cost implements the Coster interface method.
-func (gen *progGen) Cost() (min, max int64) {
+func (gen *progGen) Cost(hinter interpreter.CostHinter) (min, max int64) {
 	// Use an empty state value since no evaluation is performed.
 	p, err := gen.factory(emptyEvalState)
 	if err != nil {
 		return 0, math.MaxInt64
 	}
-	return estimateCost(p)
+	return estimateCost(p, hinter)
 }
 
 var (
@@ -302,14 +302,14 @@ var (
 )
 
 // EstimateCost returns the heuristic cost interval for the program.
-func EstimateCost(p Program) (min, max int64) {
-	return estimateCost(p)
+func EstimateCost(p Program, hinter interpreter.CostHinter) (min, max int64) {
+	return estimateCost(p, hinter)
 }
 
-func estimateCost(i interface{}) (min, max int64) {
+func estimateCost(i interface{}, hinter interpreter.CostHinter) (min, max int64) {
 	c, ok := i.(interpreter.Coster)
 	if !ok {
 		return 0, math.MaxInt64
 	}
-	return c.Cost()
+	return c.Cost(hinter)
 }

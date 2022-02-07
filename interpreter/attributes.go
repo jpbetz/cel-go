@@ -236,9 +236,9 @@ func (a *absoluteAttribute) ID() int64 {
 }
 
 // Cost implements the Coster interface method.
-func (a *absoluteAttribute) Cost() (min, max int64) {
+func (a *absoluteAttribute) Cost(hinter CostHinter) (min, max int64) {
 	for _, q := range a.qualifiers {
-		minQ, maxQ := estimateCost(q)
+		minQ, maxQ := estimateCost(q, hinter)
 		min += minQ
 		max += maxQ
 	}
@@ -355,10 +355,10 @@ func (a *conditionalAttribute) Type() *exprpb.Type {
 // Cost provides the heuristic cost of a ternary operation <expr> ? <t> : <f>.
 // The cost is computed as cost(expr) plus the min/max costs of evaluating either
 // `t` or `f`.
-func (a *conditionalAttribute) Cost() (min, max int64) {
-	tMin, tMax := estimateCost(a.truthy)
-	fMin, fMax := estimateCost(a.falsy)
-	eMin, eMax := estimateCost(a.expr)
+func (a *conditionalAttribute) Cost(hinter CostHinter) (min, max int64) {
+	tMin, tMax := estimateCost(a.truthy, hinter)
+	fMin, fMax := estimateCost(a.falsy, hinter)
+	eMin, eMax := estimateCost(a.expr, hinter)
 	return eMin + findMin(tMin, fMin), eMax + findMax(tMax, fMax)
 }
 
@@ -435,10 +435,10 @@ func (a *maybeAttribute) Type() *exprpb.Type {
 
 // Cost implements the Coster interface method. The min cost is computed as the minimal cost among
 // all the possible attributes, the max cost ditto.
-func (a *maybeAttribute) Cost() (min, max int64) {
+func (a *maybeAttribute) Cost(hinter CostHinter) (min, max int64) {
 	min, max = math.MaxInt64, 0
 	for _, a := range a.attrs {
-		minA, maxA := estimateCost(a)
+		minA, maxA := estimateCost(a, hinter)
 		min = findMin(min, minA)
 		max = findMax(max, maxA)
 	}
@@ -570,10 +570,10 @@ func (a *relativeAttribute) Type() *exprpb.Type {
 }
 
 // Cost implements the Coster interface method.
-func (a *relativeAttribute) Cost() (min, max int64) {
-	min, max = estimateCost(a.operand)
+func (a *relativeAttribute) Cost(hinter CostHinter) (min, max int64) {
+	min, max = estimateCost(a.operand, hinter)
 	for _, qual := range a.qualifiers {
-		minQ, maxQ := estimateCost(qual)
+		minQ, maxQ := estimateCost(qual, hinter)
 		min += minQ
 		max += maxQ
 	}
@@ -675,8 +675,8 @@ func (q *attrQualifier) ID() int64 {
 }
 
 // Cost returns zero for constant field qualifiers
-func (q *attrQualifier) Cost() (min, max int64) {
-	return estimateCost(q.Attribute)
+func (q *attrQualifier) Cost(hinter CostHinter) (min, max int64) {
+	return estimateCost(q.Attribute, hinter)
 }
 
 type stringQualifier struct {

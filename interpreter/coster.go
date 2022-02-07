@@ -14,22 +14,25 @@
 
 package interpreter
 
-import "math"
+import (
+	expr "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
+	"math"
+)
 
 type CostHinter interface {
-	Cost()
+	HintLength(t *expr.Type) int64
 }
 
 // Coster calculates the heuristic cost incurred during evaluation.
 type Coster interface {
-	Cost() (min, max int64)
+	Cost(hinter CostHinter) (min, max int64)
 }
 
 // estimateCost returns the heuristic cost interval for the program.
-func estimateCost(i interface{}) (min, max int64) {
+func estimateCost(i interface{}, hinter CostHinter) (min, max int64) {
 	c, ok := i.(Coster)
 	if !ok {
 		return 0, math.MaxInt64
 	}
-	return c.Cost()
+	return c.Cost(hinter)
 }
