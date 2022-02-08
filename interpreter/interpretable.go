@@ -805,9 +805,16 @@ func (fold *evalFold) Cost(hinter CostHinter) (min, max int64) {
 	iMin, iMax := estimateCost(fold.iterRange, hinter) // interpreter.evalAttr
 	t := fold.iterRange.Type()
 	var rangeCnt int64
-	if l := hinter.HintLength(t); l > -1 {
-		rangeCnt = l
-	} else {
+	lengthEstimated := false
+	if iattr, ok := fold.iterRange.(InterpretableAttribute); ok {
+		attr := iattr.Attr()
+		rangeCnt = hinter.HintLength(t, attr)
+		if rangeCnt > -1 {
+			lengthEstimated = true
+		}
+	}
+	if !lengthEstimated {
+		rangeCnt = 0
 		// the iterRange.namespaceNames and iterRange.qualifiers seem to be enough to find the type information
 		// iterRange(interpreter.evalAttr).attr(absoluteAttribute).qualifiers[?](fieldQualifier).FieldType.Type in particular seems to have everything I need
 		// if evalFold.Type() existed, I could do what I need
@@ -1228,9 +1235,16 @@ func (fold *evalExhaustiveFold) Cost(hinter CostHinter) (min, max int64) {
 
 	t := fold.iterRange.Type()
 	var rangeCnt int64
-	if l := hinter.HintLength(t); l > -1 {
-		rangeCnt = l
-	} else {
+	lengthEsimated := false
+	if iattr, ok := fold.iterRange.(InterpretableAttribute); ok {
+		attr := iattr.Attr()
+		rangeCnt = hinter.HintLength(t, attr)
+		if rangeCnt > -1 {
+			lengthEsimated = true
+		}
+	}
+	if !lengthEsimated {
+		rangeCnt = 0
 
 		// Compute the size of iterRange. If the size depends on the input, return the maximum possible
 		// cost range.

@@ -1196,7 +1196,7 @@ type testHinter struct {
 	m map[*exprpb.Type]int64
 }
 
-func (th *testHinter) HintLength(t *exprpb.Type) int64 {
+func (th *testHinter) HintLength(t *exprpb.Type, attr interpreter.Attribute) int64 {
 	if hint, ok := th.m[t]; ok {
 		return hint
 	}
@@ -1206,6 +1206,7 @@ func (th *testHinter) HintLength(t *exprpb.Type) int64 {
 func TestCost(t *testing.T) {
 	allList := decls.NewListType(decls.NewObjectType("google.expr.proto3.test.TestAllTypes"))
 	intList := decls.NewListType(decls.Int)
+	nestedList := decls.NewListType(allList)
 	cases := []struct {
 		name                                     string
 		program                                  string
@@ -1247,6 +1248,16 @@ func TestCost(t *testing.T) {
 			wantedMax:           402,
 			wantedMinExhaustive: 402,
 			wantedMaxExhaustive: 402,
+		},
+		{
+			name:                "nested field list iteration",
+			decls:               []*exprpb.Decl{decls.NewVar("input", nestedList)},
+			hints:               map[*exprpb.Type]int64{nestedList: 50, allList: 10},
+			program:             `input.all(x, x.all(y, true))`,
+			wantedMin:           5,
+			wantedMax:           2302,
+			wantedMinExhaustive: 2302,
+			wantedMaxExhaustive: 2302,
 		},
 	}
 

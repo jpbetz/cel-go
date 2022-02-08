@@ -20,7 +20,7 @@ import (
 )
 
 type CostHinter interface {
-	HintLength(t *expr.Type) int64
+	HintLength(t *expr.Type, attr Attribute) int64
 }
 
 // Coster calculates the heuristic cost incurred during evaluation.
