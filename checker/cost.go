@@ -535,7 +535,7 @@ func (c *coster) functionCost(function, overloadID string, target *AstNode, args
 
 	if est := c.estimator.EstimateCallCost(function, overloadID, target, args); est != nil {
 		callEst := *est
-		return CallEstimate{CostEstimate: callEst.Add(argCostSum())}
+		return CallEstimate{CostEstimate: callEst.Add(argCostSum()), ResultSize: est.ResultSize}
 	}
 	switch overloadID {
 	// O(n) functions
